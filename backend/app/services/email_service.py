@@ -33,7 +33,7 @@ def get_verification_email_html(full_name: str, code: str) -> str:
                 box-shadow: 0 4px 15px rgba(0,0,0,0.05);
             }}
             .header {{
-                background-color: #00aa6c; /* TripAdvisor Green */
+                background-color: #00aa6c; /* TripNova Green */
                 padding: 30px;
                 text-align: center;
             }}
@@ -86,7 +86,7 @@ def get_verification_email_html(full_name: str, code: str) -> str:
     <body>
         <div class="container">
             <div class="header">
-                <h1>TripAdvisor</h1>
+                <h1>TripNova</h1>
             </div>
             <div class="content">
                 <h2>Email Verification</h2>
@@ -99,7 +99,7 @@ def get_verification_email_html(full_name: str, code: str) -> str:
                 <p>If you didn't create an account, please ignore this email.</p>
             </div>
             <div class="footer">
-                <p>&copy; {datetime.now().year} TripAdvisor by Binod Kapadi. All rights reserved.</p>
+                <p>&copy; {datetime.now().year} TripNova by Binod Kapadi. All rights reserved.</p>
             </div>
         </div>
     </body>
@@ -182,7 +182,7 @@ def get_password_reset_email_html(full_name: str, code: str) -> str:
     <body>
         <div class="container">
             <div class="header">
-                <h1>TripAdvisor</h1>
+                <h1>TripNova</h1>
             </div>
             <div class="content">
                 <h2>Password Reset</h2>
@@ -195,7 +195,7 @@ def get_password_reset_email_html(full_name: str, code: str) -> str:
                 <p>If you didn't request a password reset, please ignore this email.</p>
             </div>
             <div class="footer">
-                <p>&copy; {datetime.now().year} TripAdvisor by Binod Kapadi. All rights reserved.</p>
+                <p>&copy; {datetime.now().year} TripNova by Binod Kapadi. All rights reserved.</p>
             </div>
         </div>
     </body>
@@ -257,14 +257,14 @@ def get_welcome_email_html(full_name: str) -> str:
     <body>
         <div class="container">
             <div class="header">
-                <h1>TripAdvisor</h1>
+                <h1>TripNova</h1>
             </div>
             <div class="content">
-                <h2>Welcome to TripAdvisor, {name}!</h2>
+                <h2>Welcome to TripNova, {name}!</h2>
                 <p>We're excited to have you on board. Start planning your next adventure today!</p>
             </div>
             <div class="footer">
-                <p>&copy; {datetime.now().year} TripAdvisor by Binod Kapadi. All rights reserved.</p>
+                <p>&copy; {datetime.now().year} TripNova by Binod Kapadi. All rights reserved.</p>
             </div>
         </div>
     </body>
@@ -355,14 +355,14 @@ def get_itinerary_email_html(destination: str, body_text: str) -> str:
     <body>
         <div class="container">
             <div class="header">
-                <h1>TripAdvisor</h1>
+                <h1>TripNova</h1>
             </div>
             <div class="content">
                 <h2>Your Trip to {destination} is Ready!</h2>
                 <div class="itinerary-text">{formatted_body}</div>
             </div>
             <div class="footer">
-                <p>&copy; {datetime.now().year} TripAdvisor by Binod Kapadi. All rights reserved.</p>
+                <p>&copy; {datetime.now().year} TripNova by Binod Kapadi. All rights reserved.</p>
             </div>
         </div>
     </body>
@@ -387,9 +387,9 @@ class EmailService:
         sender_email = getattr(settings, "SENDER_EMAIL", None) or settings.EMAIL_FROM or settings.SMTP_USER
         if not sender_email:
             print("[BREVO] WARNING: SENDER_EMAIL or EMAIL_FROM is not set in environment variables! Brevo requires a verified sender.")
-            sender_email = "noreply@tripadvisor.com"
+            sender_email = "noreply@tripnova.com"
 
-        sender_name = getattr(settings, "SENDER_NAME", "TripAdvisor")
+        sender_name = getattr(settings, "SENDER_NAME", "TripNova")
         
         payload = {
             "sender": {"email": sender_email, "name": sender_name},
@@ -437,7 +437,7 @@ class EmailService:
 
         def _send():
             msg = EmailMessage()
-            sender_name = getattr(settings, "SENDER_NAME", "TripAdvisor")
+            sender_name = getattr(settings, "SENDER_NAME", "TripNova")
             msg["From"] = f"{sender_name} <{settings.EMAIL_FROM}>"
             msg["To"] = to_email
             msg["Subject"] = subject

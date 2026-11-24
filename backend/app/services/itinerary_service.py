@@ -546,7 +546,7 @@ async def generate_plan(*, user_id: str, email: str, full_name: str, form: dict[
         else:
             formatted_recs += f"• {rec}\n"
 
-    subject = f"Your TripAdvisor itinerary ({form['destination']})"
+    subject = f"Your TripNova itinerary ({form['destination']})"
     preferences_summary = _summarize_preferences(form.get('preferences', ''))
     body = (
         f"Hello {full_name},\n\n"
@@ -555,7 +555,7 @@ async def generate_plan(*, user_id: str, email: str, full_name: str, form: dict[
         f"We hope you have an amazing time exploring {form['destination']} and creating unforgettable memories.\n\n"
         f"If you capture beautiful moments during your trip, we would love to see them. Feel free to share your travel videos with us by uploading them to any social media platform and sending us the video link through the “Share Your Trip” section on our website.\n\n"
         f"Wishing you a safe, enjoyable, and wonderful journey. \n\n"
-        f"Warm regards,\nTripAdvisor Team"
+        f"Warm regards,\nTripNova Team"
     )
 
     frontend_url = "https://tripwithbinod.netlify.app" if settings.is_production else settings.FRONTEND_URLS

@@ -56,7 +56,7 @@ def get_frontend_url_from_state(state: str | None) -> str:
 
 @router.get("/")
 async def root() -> dict[str, str]:
-    return {"message": "TripAdvisor API is running properly 🚀"}
+    return {"message": "TripNova API is running properly 🚀"}
 
 
 def _extract_user_id(claims: dict[str, Any]) -> str:
@@ -177,7 +177,7 @@ async def auth_send_code(req: SendCodeRequest, request: Request) -> dict[str, An
     # NOTE: store hash only.
     await save_code(email=req.email, purpose=purpose, code=code)
 
-    body_text = f"Your TripAdvisor verification code is: {code}\n\nThis code expires in 10 minutes."
+    body_text = f"Your TripNova verification code is: {code}\n\nThis code expires in 10 minutes."
     
     full_name = ""
     if purpose == "signup" and getattr(req, "fullName", None):
@@ -188,10 +188,10 @@ async def auth_send_code(req: SendCodeRequest, request: Request) -> dict[str, An
             full_name = user.get("fullName", "")
             
     if purpose == "signup":
-        subject = "TripAdvisor: Verify your email address"
+        subject = "TripNova: Verify your email address"
         body_html = get_verification_email_html(full_name, code)
     else:
-        subject = "TripAdvisor: Password Reset"
+        subject = "TripNova: Password Reset"
         body_html = get_password_reset_email_html(full_name, code)
 
     try:
@@ -815,7 +815,7 @@ async def share_video(payload: ShareVideoRequest, request: Request) -> dict[str,
     )
 
     # Notify admin email.
-    subject = "TripAdvisor: shared trip link"
+    subject = "TripNova: shared trip link"
     await send_email(
         settings.NOTIFY_EMAIL,
         subject,

@@ -52,7 +52,7 @@ export default function ChatWidget() {
         <span className="text-2xl">💬</span>
       </motion.button>
 
-      <Modal open={open} onClose={() => setOpen(false)} title="TripAdvisor Assistant">
+      <Modal open={open} onClose={() => setOpen(false)} title="TripNova Assistant">
         {!canChat ? (
           <div className="text-sm text-white/80">
             Generate an itinerary first (and sign in) to start chatting.

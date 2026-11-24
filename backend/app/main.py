@@ -25,7 +25,7 @@ async def lifespan(app: FastAPI):
     # Shutdown
     pass
 
-app = FastAPI(title="TripAdvisor Backend", lifespan=lifespan)
+app = FastAPI(title="TripNova Backend", lifespan=lifespan)
 app.state.limiter = limiter
 app.add_middleware(SlowAPIMiddleware)
 

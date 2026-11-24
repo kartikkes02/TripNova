@@ -44,7 +44,7 @@ class Settings(BaseSettings):
     SMTP_PASSWORD: str | None = None
     EMAIL_FROM: str | None = None
     SENDER_EMAIL: str | None = None
-    SENDER_NAME: str = "TripAdvisor"
+    SENDER_NAME: str = "TripNova"
     NOTIFY_EMAIL: str = "binoddattkapadi@gmail.com"
 
     # JWT
