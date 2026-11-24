@@ -51,6 +51,10 @@ async def _generate_once(model: str, prompt: str) -> str:
 
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
     params = {"key": settings.GEMINI_API_KEY}
+    headers = {
+        "x-goog-api-key": settings.GEMINI_API_KEY,
+        "Content-Type": "application/json"
+    }
 
     payload = {
         "contents": [{"role": "user", "parts": [{"text": prompt}]}],
@@ -62,7 +66,7 @@ async def _generate_once(model: str, prompt: str) -> str:
     }
 
     async with httpx.AsyncClient(timeout=25.0) as client:
-        r = await client.post(url, params=params, json=payload)
+        r = await client.post(url, headers=headers, params=params, json=payload)
         r.raise_for_status()
         data = r.json()
 
@@ -82,7 +86,7 @@ async def generate_json(prompt: str) -> dict[str, Any]:
                     print(f"[GEMINI API] Response body: {e.response.text}")
                 except:
                     pass
-                if e.response.status_code in (400, 401, 403, 429):
+                if 400 <= e.response.status_code < 500:
                     print(f"[GEMINI API] Status {e.response.status_code} hit. Immediately failing over to Groq!")
                     last_err = e
                     break
@@ -98,6 +102,10 @@ async def generate_json(prompt: str) -> dict[str, Any]:
             return _extract_json(groq_text)
         except Exception as ge:
             print(f"[GROQ FALLBACK] Failed: {ge}")
+            last_err = RuntimeError(f"Both Gemini ({last_err}) and Groq ({ge}) failed.")
+    else:
+        print("[GROQ FALLBACK] GROQ_API_KEY is not set in settings!")
+        last_err = RuntimeError(f"Gemini failed ({last_err}), and GROQ_API_KEY is not configured in Render environment variables.")
 
     raise last_err or RuntimeError("AI generation failed for all models")
 
@@ -117,7 +125,7 @@ async def generate_text(prompt: str, use_search: bool = False) -> str:
                     print(f"[GEMINI API] Response body: {e.response.text}")
                 except:
                     pass
-                if e.response.status_code in (400, 401, 403, 429):
+                if 400 <= e.response.status_code < 500:
                     print(f"[GEMINI API] Status {e.response.status_code} hit. Immediately failing over to Groq!")
                     last_err = e
                     break
@@ -144,6 +152,10 @@ async def _stream_generate_once(model: str, prompt: str):
 
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:streamGenerateContent?alt=sse"
     params = {"key": settings.GEMINI_API_KEY}
+    headers = {
+        "x-goog-api-key": settings.GEMINI_API_KEY,
+        "Content-Type": "application/json"
+    }
 
     payload = {
         "contents": [{"role": "user", "parts": [{"text": prompt}]}],
@@ -161,7 +173,7 @@ async def _stream_generate_once(model: str, prompt: str):
     async with httpx.AsyncClient(timeout=180.0) as client:
         for attempt in range(max_retries):
             try:
-                async with client.stream("POST", url, params=params, json=payload) as r:
+                async with client.stream("POST", url, headers=headers, params=params, json=payload) as r:
                     if r.status_code == 429:
                         if attempt < max_retries - 1:
                             delay = base_delay * (2 ** attempt)
