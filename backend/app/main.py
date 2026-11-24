@@ -30,11 +30,12 @@ app.state.limiter = limiter
 app.add_middleware(SlowAPIMiddleware)
 
 frontend_urls = [url.strip().rstrip("/") for url in settings.FRONTEND_URLS.split(",") if url.strip()]
-origins = list(set(frontend_urls + ["http://localhost:5173", "http://127.0.0.1:5173"]))
+origins = list(set(frontend_urls + ["http://localhost:5173", "http://127.0.0.1:5173", "https://trip-nova-three.vercel.app"]))
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
+    allow_origin_regex=r"https://.*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
