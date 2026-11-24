@@ -74,6 +74,17 @@ async def _generate_once(model: str, prompt: str) -> str:
 
 
 async def generate_json(prompt: str) -> dict[str, Any]:
+    # 1. Prefer Groq if available (lightning fast, highly reliable)
+    if settings.GROQ_API_KEY:
+        try:
+            from .groq_client import _generate_once as groq_generate_once
+            print("[GROQ] Generating JSON with llama-3.3-70b-versatile...")
+            groq_text = await groq_generate_once("llama-3.3-70b-versatile", prompt)
+            return _extract_json(groq_text)
+        except Exception as ge:
+            print(f"[GROQ] Failed: {ge}. Falling back to Gemini...")
+
+    # 2. Fallback to Gemini
     last_err: Exception | None = None
     for model in _get_models(use_search=False):
         try:
@@ -81,36 +92,25 @@ async def generate_json(prompt: str) -> dict[str, Any]:
             return _extract_json(text)
         except Exception as e:
             print(f"[GEMINI API] Model {model} failed: {type(e).__name__} - {str(e)}")
-            if isinstance(e, httpx.HTTPStatusError):
-                try:
-                    print(f"[GEMINI API] Response body: {e.response.text}")
-                except:
-                    pass
-                if 400 <= e.response.status_code < 500:
-                    print(f"[GEMINI API] Status {e.response.status_code} hit. Immediately failing over to Groq!")
-                    last_err = e
-                    break
             last_err = e
             continue
 
-    # Fallback to Groq if Gemini is exhausted/rate limited
-    if settings.GROQ_API_KEY:
-        try:
-            from .groq_client import _generate_once as groq_generate_once
-            print("[GROQ FALLBACK] Attempting JSON generation with Groq...")
-            groq_text = await groq_generate_once("llama-3.3-70b-versatile", prompt)
-            return _extract_json(groq_text)
-        except Exception as ge:
-            print(f"[GROQ FALLBACK] Failed: {ge}")
-            last_err = RuntimeError(f"Both Gemini ({last_err}) and Groq ({ge}) failed.")
-    else:
-        print("[GROQ FALLBACK] GROQ_API_KEY is not set in settings!")
-        last_err = RuntimeError(f"Gemini failed ({last_err}), and GROQ_API_KEY is not configured in Render environment variables.")
-
-    raise last_err or RuntimeError("AI generation failed for all models")
+    raise last_err or RuntimeError("AI generation failed. Ensure GROQ_API_KEY or a valid GEMINI_API_KEY is configured in Render.")
 
 
 async def generate_text(prompt: str, use_search: bool = False) -> str:
+    # 1. Prefer Groq if available
+    if settings.GROQ_API_KEY:
+        try:
+            from .groq_client import _generate_once as groq_generate_once
+            print("[GROQ] Generating text with llama-3.3-70b-versatile...")
+            groq_text = await groq_generate_once("llama-3.3-70b-versatile", prompt)
+            if groq_text:
+                return str(groq_text).strip()
+        except Exception as ge:
+            print(f"[GROQ] Failed: {ge}. Falling back to Gemini...")
+
+    # 2. Fallback to Gemini
     last_err: Exception | None = None
     for model in _get_models(use_search=use_search):
         try:
@@ -120,29 +120,10 @@ async def generate_text(prompt: str, use_search: bool = False) -> str:
             return str(text).strip()
         except Exception as e:
             print(f"[GEMINI API] Model {model} failed: {type(e).__name__} - {str(e)}")
-            if isinstance(e, httpx.HTTPStatusError):
-                try:
-                    print(f"[GEMINI API] Response body: {e.response.text}")
-                except:
-                    pass
-                if 400 <= e.response.status_code < 500:
-                    print(f"[GEMINI API] Status {e.response.status_code} hit. Immediately failing over to Groq!")
-                    last_err = e
-                    break
             last_err = e
             continue
 
-    # Fallback to Groq if Gemini is exhausted/rate limited
-    if settings.GROQ_API_KEY:
-        try:
-            from .groq_client import _generate_once as groq_generate_once
-            print("[GROQ FALLBACK] Attempting text generation with Groq...")
-            groq_text = await groq_generate_once("llama-3.3-70b-versatile", prompt)
-            return str(groq_text).strip()
-        except Exception as ge:
-            print(f"[GROQ FALLBACK] Failed: {ge}")
-
-    raise last_err or RuntimeError("AI generation failed for all models")
+    raise last_err or RuntimeError("AI generation failed. Ensure GROQ_API_KEY or a valid GEMINI_API_KEY is configured in Render.")
 
 
 async def _stream_generate_once(model: str, prompt: str):
