@@ -100,7 +100,7 @@ export default function HomePage() {
         <div className="relative mx-auto flex max-w-6xl flex-col items-start justify-center px-4 pb-16 pt-28 md:pt-24 text-white">
           <h1 className="mt-6 max-w-2xl text-5xl font-extrabold leading-[1.03] text-white drop-shadow-[0_20px_40px_rgba(0,0,0,0.45)]">
             <span className="text-emerald-300">Plan your next adventure with</span>{' '}
-            <span className="text-orange-300">TripAdvisor</span>
+            <span className="text-orange-300">TripNova</span>
           </h1>
 
           <p className="mt-4 max-w-xl text-sm text-slate-200/90">“{quote}”</p>
