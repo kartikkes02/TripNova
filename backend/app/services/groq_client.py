@@ -8,11 +8,11 @@ import httpx
 
 from ..core.config import settings
 
-GROQ_MODELS = [
+FALLBACK_GROQ_MODELS = [
+    "openai/gpt-oss-120b",
+    "openai/gpt-oss-20b",
+    "qwen/qwen3.8-27b",
     "llama-3.3-70b-versatile",
-    "llama-3.1-8b-instant",
-    "deepseek-r1-distill-llama-70b",
-    "gemma2-9b-it",
 ]
 
 
@@ -20,6 +20,30 @@ def _get_clean_key() -> str:
     if not settings.GROQ_API_KEY:
         raise RuntimeError("GROQ_API_KEY is not configured in environment")
     return settings.GROQ_API_KEY.strip().strip("'\"")
+
+
+async def _get_groq_models(clean_key: str) -> list[str]:
+    try:
+        async with httpx.AsyncClient(timeout=8.0) as client:
+            r = await client.get(
+                "https://api.groq.com/openai/v1/models",
+                headers={"Authorization": f"Bearer {clean_key}"},
+            )
+            if r.status_code == 200:
+                data = r.json()
+                active = [
+                    m["id"]
+                    for m in data.get("data", [])
+                    if not m.get("id", "").startswith("whisper")
+                    and "guard" not in m.get("id", "").lower()
+                ]
+                if active:
+                    print(f"[GROQ API] Discovered {len(active)} active models on Groq: {active[:5]}")
+                    return active
+    except Exception as e:
+        print(f"[GROQ API] Dynamic model discovery failed: {e}")
+
+    return FALLBACK_GROQ_MODELS
 
 
 def _extract_json(text: str) -> dict[str, Any]:
@@ -85,8 +109,11 @@ async def _generate_once(model: str, prompt: str, json_mode: bool = False) -> st
 
 
 async def generate_json(prompt: str) -> dict[str, Any]:
+    clean_key = _get_clean_key()
+    models = await _get_groq_models(clean_key)
     errors = []
-    for model in GROQ_MODELS:
+
+    for model in models:
         try:
             print(f"[GROQ] Generating JSON with model: {model}...")
             text = await _generate_once(model, prompt, json_mode=True)
@@ -103,8 +130,11 @@ async def generate_json(prompt: str) -> dict[str, Any]:
 
 
 async def generate_text(prompt: str) -> str:
+    clean_key = _get_clean_key()
+    models = await _get_groq_models(clean_key)
     errors = []
-    for model in GROQ_MODELS:
+
+    for model in models:
         try:
             print(f"[GROQ] Generating text with model: {model}...")
             text = await _generate_once(model, prompt, json_mode=False)
@@ -158,8 +188,11 @@ async def _stream_generate_once(model: str, prompt: str) -> AsyncGenerator[str, 
 
 
 async def async_stream_text(prompt: str) -> AsyncGenerator[str, None]:
+    clean_key = _get_clean_key()
+    models = await _get_groq_models(clean_key)
     errors = []
-    for model in GROQ_MODELS:
+
+    for model in models:
         try:
             yielded_any = False
             async for chunk in _stream_generate_once(model, prompt):

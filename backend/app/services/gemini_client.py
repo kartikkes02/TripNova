@@ -5,35 +5,14 @@ import re
 from typing import Any
 
 import httpx
-from tenacity import retry, stop_after_attempt, wait_exponential
 
 from ..core.config import settings
 
 GENERATION_MODELS = [
-    "gemini-2.0-flash",
-    "gemini-1.5-flash",
-    "gemini-1.5-pro",
+    "gemini-3.8-flash",
+    "gemini-2.5-flash",
+    "gemini-3-flash-preview",
 ]
-
-LIVE_SEARCH_SYNTHESIS_MODELS = [
-    "gemini-2.0-flash",
-    "gemini-1.5-flash",
-    "gemini-1.5-pro",
-]
-
-FALLBACK_MODELS = [
-    "gemini-1.5-flash",
-    "gemini-2.0-flash",
-]
-
-
-def _get_models(use_search: bool = False) -> list[str]:
-    models = LIVE_SEARCH_SYNTHESIS_MODELS if use_search else GENERATION_MODELS
-    final_models = []
-    for m in models + FALLBACK_MODELS:
-        if m not in final_models:
-            final_models.append(m)
-    return final_models
 
 
 def _extract_json(text: str) -> dict[str, Any]:
@@ -61,18 +40,47 @@ def _extract_json(text: str) -> dict[str, Any]:
     return json.loads(stripped)
 
 
-async def _generate_once(model: str, prompt: str) -> str:
-    print(f"[GEMINI API] Generating with model: {model} | Prompt length: {len(prompt)}")
-    if not settings.GEMINI_API_KEY:
-        raise RuntimeError("GEMINI_API_KEY is missing in environment")
+async def _call_interactions_api(clean_key: str, model: str, prompt: str) -> str:
+    url = "https://generativelanguage.googleapis.com/v1beta/interactions"
+    headers = {
+        "x-goog-api-key": clean_key,
+        "Content-Type": "application/json",
+    }
+    payload = {
+        "model": model,
+        "input": prompt,
+    }
 
-    clean_key = settings.GEMINI_API_KEY.strip().strip("'\"")
+    async with httpx.AsyncClient(timeout=45.0) as client:
+        r = await client.post(url, headers=headers, json=payload)
+        if r.status_code >= 400:
+            err_text = r.text[:350]
+            raise RuntimeError(f"Interactions API {r.status_code} ({model}): {err_text}")
+        data = r.json()
+
+    # Extract text from steps (model_output)
+    for step in data.get("steps", []):
+        if step.get("type") == "model_output":
+            for part in step.get("content", []):
+                if part.get("type") == "text" and part.get("text"):
+                    return part["text"]
+
+    # Extract text from outputs array if present
+    for out in data.get("outputs", []):
+        if isinstance(out, dict) and out.get("text"):
+            return out["text"]
+        elif isinstance(out, str) and out:
+            return out
+
+    raise RuntimeError(f"Interactions API returned no text output for {model}")
+
+
+async def _call_generate_content_api(clean_key: str, model: str, prompt: str) -> str:
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
     headers = {
         "x-goog-api-key": clean_key,
         "Content-Type": "application/json",
     }
-
     payload = {
         "contents": [{"role": "user", "parts": [{"text": prompt}]}],
         "generationConfig": {
@@ -86,15 +94,32 @@ async def _generate_once(model: str, prompt: str) -> str:
         r = await client.post(url, headers=headers, json=payload)
         if r.status_code >= 400:
             err_text = r.text[:350]
-            print(f"[GEMINI API] HTTP {r.status_code} on {model}: {err_text}")
-            raise RuntimeError(f"Gemini {r.status_code} ({model}): {err_text}")
+            raise RuntimeError(f"generateContent API {r.status_code} ({model}): {err_text}")
         data = r.json()
 
     return data["candidates"][0]["content"]["parts"][0]["text"]
 
 
+async def _generate_once(model: str, prompt: str) -> str:
+    print(f"[GEMINI API] Generating with model: {model} | Prompt length: {len(prompt)}")
+    if not settings.GEMINI_API_KEY:
+        raise RuntimeError("GEMINI_API_KEY is missing in environment")
+
+    clean_key = settings.GEMINI_API_KEY.strip().strip("'\"")
+
+    # 1. Try Google's recommended Interactions API first
+    try:
+        print(f"[GEMINI API] Trying Interactions API for {model}...")
+        return await _call_interactions_api(clean_key, model, prompt)
+    except Exception as ie:
+        print(f"[GEMINI API] Interactions API attempt failed: {ie}. Trying generateContent API...")
+
+    # 2. Fallback to generateContent API
+    return await _call_generate_content_api(clean_key, model, prompt)
+
+
 async def generate_json(prompt: str) -> dict[str, Any]:
-    # 1. Prefer Groq (fast, multi-model fallback, no 404s)
+    # 1. Prefer Groq if available
     groq_error: str | None = None
     if settings.GROQ_API_KEY:
         try:
@@ -107,12 +132,15 @@ async def generate_json(prompt: str) -> dict[str, Any]:
 
     # 2. Fallback to Gemini
     gemini_errors = []
-    for model in _get_models(use_search=False):
+    for model in GENERATION_MODELS:
         try:
             text = await _generate_once(model, prompt)
-            return _extract_json(text)
+            parsed = _extract_json(text)
+            if parsed and isinstance(parsed, dict):
+                print(f"[GEMINI API] Successfully generated plan with model {model}")
+                return parsed
         except Exception as e:
-            print(f"[GEMINI API] Model {model} failed: {type(e).__name__} - {str(e)}")
+            print(f"[GEMINI API] Model {model} failed: {e}")
             gemini_errors.append(f"{model}: {e}")
             continue
 
@@ -138,14 +166,13 @@ async def generate_text(prompt: str, use_search: bool = False) -> str:
 
     # 2. Fallback to Gemini
     last_err: Exception | None = None
-    for model in _get_models(use_search=use_search):
+    for model in GENERATION_MODELS:
         try:
             text = await _generate_once(model, prompt)
-            if not text:
-                raise RuntimeError(f"Model {model} yielded no content.")
-            return str(text).strip()
+            if text:
+                return str(text).strip()
         except Exception as e:
-            print(f"[GEMINI API] Model {model} failed: {type(e).__name__} - {str(e)}")
+            print(f"[GEMINI API] Model {model} failed: {e}")
             last_err = e
             continue
 
@@ -158,10 +185,6 @@ async def generate_text(prompt: str, use_search: bool = False) -> str:
 
 
 async def _stream_generate_once(model: str, prompt: str):
-    print(f"[GEMINI STREAM] Generating with model: {model} | Prompt length: {len(prompt)}")
-    if not settings.GEMINI_API_KEY:
-        raise RuntimeError("GEMINI_API_KEY is missing in environment")
-
     clean_key = settings.GEMINI_API_KEY.strip().strip("'\"")
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:streamGenerateContent?alt=sse"
     headers = {
@@ -194,7 +217,7 @@ async def _stream_generate_once(model: str, prompt: str):
                             await asyncio.sleep(delay)
                             continue
                         raise RuntimeError(f"Gemini stream {r.status_code} ({model}): {err_text}")
-                    
+
                     async for line in r.aiter_lines():
                         if line.startswith("data: "):
                             data_str = line[6:]
@@ -209,7 +232,7 @@ async def _stream_generate_once(model: str, prompt: str):
                                         yield parts[0].get("text", "")
                             except Exception as e:
                                 print(f"Error parsing SSE chunk: {e}")
-                    
+
                     return
             except Exception as e:
                 if attempt < max_retries - 1:
@@ -220,7 +243,7 @@ async def _stream_generate_once(model: str, prompt: str):
 
 async def async_stream_text(prompt: str, use_search: bool = False):
     last_err: Exception | None = None
-    for model in _get_models(use_search=use_search):
+    for model in GENERATION_MODELS:
         try:
             yielded_any = False
             async for chunk in _stream_generate_once(model, prompt):
@@ -230,7 +253,7 @@ async def async_stream_text(prompt: str, use_search: bool = False):
                 raise RuntimeError(f"Model {model} yielded no content.")
             return
         except Exception as e:
-            print(f"[GEMINI STREAM] Model {model} failed: {type(e).__name__} - {str(e)}")
+            print(f"[GEMINI STREAM] Model {model} failed: {e}")
             last_err = e
             continue
     raise last_err or RuntimeError("Gemini streaming failed for all models")
