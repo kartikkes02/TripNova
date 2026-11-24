@@ -450,21 +450,23 @@ class EmailService:
 
         try:
             await asyncio.to_thread(_send)
+            print(f"Email sent successfully via SMTP to {to_email}")
         except Exception as e:
-            print(f"Failed to send email via SMTP: {e}")
-            raise RuntimeError(f"Failed to send email: {e}")
+            print(f"[EMAIL] SMTP delivery failed (outbound SMTP port 587/25 is blocked on cloud host): {e}")
 
     async def send_email_async(self, to_email: str, subject: str, body_text: str, body_html: str = None) -> None:
-        if settings.is_production and settings.BREVO_API_KEY:
-            try:
-                await self._send_brevo(to_email, subject, body_text, body_html)
-                print(f"Email sent successfully to {to_email} via Brevo API")
-            except Exception as e:
-                print(f"Brevo API failed, falling back to SMTP: {e}")
-                await self._send_smtp(to_email, subject, body_text, body_html)
-        else:
-            print(f"Environment is local/development. Sending email directly via SMTP to {to_email}")
+        try:
+            if settings.is_production and settings.BREVO_API_KEY:
+                try:
+                    await self._send_brevo(to_email, subject, body_text, body_html)
+                    print(f"Email sent successfully to {to_email} via Brevo API")
+                    return
+                except Exception as e:
+                    print(f"Brevo API failed, falling back to SMTP: {e}")
+
             await self._send_smtp(to_email, subject, body_text, body_html)
+        except Exception as e:
+            print(f"[EMAIL] Background email sending omitted: {e}")
 
 email_service = EmailService()
 
