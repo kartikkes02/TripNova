@@ -13,7 +13,6 @@ GENERATION_MODELS = [
     "gemini-2.0-flash",
     "gemini-1.5-flash",
     "gemini-1.5-pro",
-    "gemini-2.0-flash-lite",
 ]
 
 LIVE_SEARCH_SYNTHESIS_MODELS = [
@@ -69,16 +68,10 @@ async def _generate_once(model: str, prompt: str) -> str:
 
     clean_key = settings.GEMINI_API_KEY.strip().strip("'\"")
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
-    params: dict[str, str] = {}
-    headers = {"Content-Type": "application/json"}
-
-    if clean_key.startswith("AQ.") or clean_key.startswith("ya29."):
-        # GCP / OAuth authorization bearer token
-        headers["Authorization"] = f"Bearer {clean_key}"
-    else:
-        # Standard Google AI Studio API Key (AIzaSy...)
-        params["key"] = clean_key
-        headers["x-goog-api-key"] = clean_key
+    headers = {
+        "x-goog-api-key": clean_key,
+        "Content-Type": "application/json",
+    }
 
     payload = {
         "contents": [{"role": "user", "parts": [{"text": prompt}]}],
@@ -90,7 +83,7 @@ async def _generate_once(model: str, prompt: str) -> str:
     }
 
     async with httpx.AsyncClient(timeout=35.0) as client:
-        r = await client.post(url, headers=headers, params=params, json=payload)
+        r = await client.post(url, headers=headers, json=payload)
         if r.status_code >= 400:
             err_text = r.text[:350]
             print(f"[GEMINI API] HTTP {r.status_code} on {model}: {err_text}")
@@ -171,14 +164,10 @@ async def _stream_generate_once(model: str, prompt: str):
 
     clean_key = settings.GEMINI_API_KEY.strip().strip("'\"")
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:streamGenerateContent?alt=sse"
-    params: dict[str, str] = {}
-    headers = {"Content-Type": "application/json"}
-
-    if clean_key.startswith("AQ.") or clean_key.startswith("ya29."):
-        headers["Authorization"] = f"Bearer {clean_key}"
-    else:
-        params["key"] = clean_key
-        headers["x-goog-api-key"] = clean_key
+    headers = {
+        "x-goog-api-key": clean_key,
+        "Content-Type": "application/json",
+    }
 
     payload = {
         "contents": [{"role": "user", "parts": [{"text": prompt}]}],
@@ -196,7 +185,7 @@ async def _stream_generate_once(model: str, prompt: str):
     async with httpx.AsyncClient(timeout=60.0) as client:
         for attempt in range(max_retries):
             try:
-                async with client.stream("POST", url, headers=headers, params=params, json=payload) as r:
+                async with client.stream("POST", url, headers=headers, json=payload) as r:
                     if r.status_code >= 400:
                         err_text = (await r.aread()).decode(errors="ignore")[:300]
                         if r.status_code == 429 and attempt < max_retries - 1:
