@@ -44,7 +44,6 @@ def _extract_json(text: str) -> dict[str, Any]:
     return json.loads(stripped)
 
 
-@retry(wait=wait_exponential(min=2, max=20), stop=stop_after_attempt(3))
 async def _generate_once(model: str, prompt: str) -> str:
     print(f"[GEMINI API] Generating with model: {model} | Prompt length: {len(prompt)}")
     if not settings.GEMINI_API_KEY:
@@ -62,7 +61,7 @@ async def _generate_once(model: str, prompt: str) -> str:
         },
     }
 
-    async with httpx.AsyncClient(timeout=180.0) as client:
+    async with httpx.AsyncClient(timeout=25.0) as client:
         r = await client.post(url, params=params, json=payload)
         r.raise_for_status()
         data = r.json()
@@ -83,10 +82,13 @@ async def generate_json(prompt: str) -> dict[str, Any]:
                     print(f"[GEMINI API] Response body: {e.response.text}")
                 except:
                     pass
-                if e.response.status_code == 429:
-                    print(f"[GEMINI API] Rate limit (429) hit for {model}. Falling back to next model...")
+                if e.response.status_code in (400, 401, 403, 429):
+                    print(f"[GEMINI API] Status {e.response.status_code} hit. Immediately failing over to Groq!")
+                    last_err = e
+                    break
             last_err = e
             continue
+
     # Fallback to Groq if Gemini is exhausted/rate limited
     if settings.GROQ_API_KEY:
         try:
@@ -97,7 +99,7 @@ async def generate_json(prompt: str) -> dict[str, Any]:
         except Exception as ge:
             print(f"[GROQ FALLBACK] Failed: {ge}")
 
-    raise last_err or RuntimeError("Gemini generation failed for all models")
+    raise last_err or RuntimeError("AI generation failed for all models")
 
 
 async def generate_text(prompt: str, use_search: bool = False) -> str:
@@ -115,21 +117,24 @@ async def generate_text(prompt: str, use_search: bool = False) -> str:
                     print(f"[GEMINI API] Response body: {e.response.text}")
                 except:
                     pass
-                if e.response.status_code == 429:
-                    print(f"[GEMINI API] Rate limit (429) hit for {model}. Falling back to next model...")
+                if e.response.status_code in (400, 401, 403, 429):
+                    print(f"[GEMINI API] Status {e.response.status_code} hit. Immediately failing over to Groq!")
+                    last_err = e
+                    break
             last_err = e
             continue
+
     # Fallback to Groq if Gemini is exhausted/rate limited
     if settings.GROQ_API_KEY:
         try:
             from .groq_client import _generate_once as groq_generate_once
-            print("[GROQ FALLBACK] Attempting JSON generation with Groq...")
+            print("[GROQ FALLBACK] Attempting text generation with Groq...")
             groq_text = await groq_generate_once("llama-3.3-70b-versatile", prompt)
             return str(groq_text).strip()
         except Exception as ge:
             print(f"[GROQ FALLBACK] Failed: {ge}")
 
-    raise last_err or RuntimeError("Gemini generation failed for all models")
+    raise last_err or RuntimeError("AI generation failed for all models")
 
 
 async def _stream_generate_once(model: str, prompt: str):

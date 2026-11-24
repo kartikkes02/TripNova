@@ -405,14 +405,27 @@ async def generate_plan(*, user_id: str, email: str, full_name: str, form: dict[
             transport_coro = search_web(transport_query)
 
         print("Fetching real-time data concurrently...")
-        results = await asyncio.gather(
-            get_weather_insights(form["destination"], form["startDate"], form["endDate"]),
-            search_hotels(form["destination"], form["startDate"], form["endDate"], form["numberOfPeople"]),
-            transport_coro,
-            search_web(rag_query),
-            search_web(cost_query),
-            return_exceptions=True
-        )
+        try:
+            results = await asyncio.wait_for(
+                asyncio.gather(
+                    get_weather_insights(form["destination"], form["startDate"], form["endDate"]),
+                    search_hotels(form["destination"], form["startDate"], form["endDate"], form["numberOfPeople"]),
+                    transport_coro,
+                    search_web(rag_query),
+                    search_web(cost_query),
+                    return_exceptions=True
+                ),
+                timeout=15.0
+            )
+        except asyncio.TimeoutError:
+            print("Real-time data gathering timed out after 15s. Proceeding with estimations.")
+            results = [
+                "Weather data unavailable.",
+                "Hotel data unavailable.",
+                "Transport data unavailable.",
+                "General sightseeing and local highlights.",
+                "Average standard tourist expenses."
+            ]
         
         def _safe_str(res: Any) -> str:
             return str(res) if not isinstance(res, Exception) else "Data unavailable due to error."
