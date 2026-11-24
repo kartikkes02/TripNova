@@ -371,20 +371,24 @@ def get_itinerary_email_html(destination: str, body_text: str) -> str:
 
 
 class EmailService:
-    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
+    @retry(stop=stop_after_attempt(2), wait=wait_exponential(multiplier=1, min=1, max=5))
     async def _send_brevo(self, to_email: str, subject: str, body_text: str, body_html: str = None) -> None:
         if not settings.BREVO_API_KEY:
             raise ValueError("BREVO_API_KEY not configured.")
 
+        clean_brevo_key = settings.BREVO_API_KEY.strip().strip("'\"")
         url = "https://api.brevo.com/v3/smtp/email"
         headers = {
             "accept": "application/json",
-            "api-key": settings.BREVO_API_KEY,
+            "api-key": clean_brevo_key,
             "content-type": "application/json"
         }
         
-        # We need EMAIL_FROM set, fallback to a sensible default if it's missing in prod
-        sender_email = getattr(settings, "SENDER_EMAIL", None) or settings.EMAIL_FROM or "noreply@tripadvisor.com"
+        sender_email = getattr(settings, "SENDER_EMAIL", None) or settings.EMAIL_FROM or settings.SMTP_USER
+        if not sender_email:
+            print("[BREVO] WARNING: SENDER_EMAIL or EMAIL_FROM is not set in environment variables! Brevo requires a verified sender.")
+            sender_email = "noreply@tripadvisor.com"
+
         sender_name = getattr(settings, "SENDER_NAME", "TripAdvisor")
         
         payload = {
@@ -401,8 +405,7 @@ class EmailService:
         async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.post(url, headers=headers, json=payload)
             response_text = response.text
-            print(f"Brevo API response status={response.status_code} to={to_email} sender={sender_email} payload_size={len(str(payload))} text_len={len(body_text)} html_len={len(body_html or '')}")
-            print(f"Brevo API raw response: {response_text}")
+            print(f"[BREVO] API status={response.status_code} to={to_email} sender={sender_email}")
 
             try:
                 response_json = response.json()
@@ -411,14 +414,13 @@ class EmailService:
 
             if response.status_code >= 400:
                 error_details = response_json or response_text
+                print(f"[BREVO] Error ({response.status_code}): {error_details}")
                 raise RuntimeError(f"Brevo API Error ({response.status_code}): {error_details}")
 
             if response_json and isinstance(response_json, dict):
                 message_id = response_json.get("messageId") or response_json.get("message_id")
                 if message_id:
-                    print(f"Brevo accepted email. messageId={message_id}")
-                else:
-                    print("Brevo accepted email but returned no messageId; inspect Brevo dashboard for delivery events.")
+                    print(f"[BREVO] Email accepted by Brevo! messageId={message_id}")
 
             response.raise_for_status()
 
@@ -456,7 +458,7 @@ class EmailService:
 
     async def send_email_async(self, to_email: str, subject: str, body_text: str, body_html: str = None) -> None:
         try:
-            if settings.is_production and settings.BREVO_API_KEY:
+            if settings.BREVO_API_KEY:
                 try:
                     await self._send_brevo(to_email, subject, body_text, body_html)
                     print(f"Email sent successfully to {to_email} via Brevo API")
