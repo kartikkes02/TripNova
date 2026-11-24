@@ -266,7 +266,7 @@ Frontend
 
 ### Frontend Hosting
 
-* Netlify
+* Vercel
 
 ### Backend Hosting
 
@@ -274,4 +274,4 @@ Frontend
 
 # AUTHOR
 
-Binod Kapadi
+Kartikeya Kesarwani
