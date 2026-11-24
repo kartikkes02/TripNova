@@ -28,9 +28,10 @@ async def _generate_once(model: str, prompt: str, json_mode: bool = False) -> st
     if not settings.GROQ_API_KEY:
         raise RuntimeError("GROQ_API_KEY is missing in environment")
 
+    clean_key = settings.GROQ_API_KEY.strip().strip("'\"")
     url = "https://api.groq.com/openai/v1/chat/completions"
     headers = {
-        "Authorization": f"Bearer {settings.GROQ_API_KEY}",
+        "Authorization": f"Bearer {clean_key}",
         "Content-Type": "application/json"
     }
     
@@ -44,8 +45,14 @@ async def _generate_once(model: str, prompt: str, json_mode: bool = False) -> st
     if json_mode:
         payload["response_format"] = {"type": "json_object"}
 
-    async with httpx.AsyncClient(timeout=60.0) as client:
+    async with httpx.AsyncClient(timeout=40.0) as client:
         r = await client.post(url, headers=headers, json=payload)
+        if r.status_code >= 400:
+            print(f"[GROQ API] Error {r.status_code}: {r.text}")
+            if json_mode and "json" in r.text.lower():
+                # Retry once without response_format if strict json_mode caused 400
+                payload.pop("response_format", None)
+                r = await client.post(url, headers=headers, json=payload)
         r.raise_for_status()
         data = r.json()
 

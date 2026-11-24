@@ -75,6 +75,7 @@ async def _generate_once(model: str, prompt: str) -> str:
 
 async def generate_json(prompt: str) -> dict[str, Any]:
     # 1. Prefer Groq (lightning fast, highly reliable, no Google Cloud 404s)
+    groq_error: str | None = None
     if settings.GROQ_API_KEY:
         try:
             from .groq_client import _generate_once as groq_generate_once
@@ -82,6 +83,7 @@ async def generate_json(prompt: str) -> dict[str, Any]:
             groq_text = await groq_generate_once("llama-3.3-70b-versatile", prompt, json_mode=True)
             return _extract_json(groq_text)
         except Exception as ge:
+            groq_error = str(ge)
             print(f"[GROQ] Failed: {ge}. Falling back to Gemini...")
 
     # 2. Fallback to Gemini
@@ -95,7 +97,12 @@ async def generate_json(prompt: str) -> dict[str, Any]:
             last_err = e
             continue
 
-    raise last_err or RuntimeError("AI generation failed. Ensure GROQ_API_KEY or a valid GEMINI_API_KEY is configured.")
+    err_msg = "AI generation failed."
+    if groq_error:
+        err_msg += f" Groq error: {groq_error}."
+    if last_err:
+        err_msg += f" Gemini error: {last_err}."
+    raise RuntimeError(err_msg)
 
 
 async def generate_text(prompt: str, use_search: bool = False) -> str:
