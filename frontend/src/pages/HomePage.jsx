@@ -151,9 +151,9 @@ export default function HomePage() {
         </div>
       </section>
 
-      <SectionShell id="about" title="About TripAdvisor">
+      <SectionShell id="about" title="About TripNova">
         <p className="mb-8 max-w-2xl text-sm text-[color:var(--text-muted)]">
-          TripAdvisor is your smart AI travel companion that creates personalized itineraries using weather, transport, budget, and local insights. With AI-powered planning, smart recommendations, and a built-in chat assistant, it helps travelers save time and enjoy seamless trips with ease.
+          TripNova is your smart AI travel companion that creates personalized itineraries using weather, transport, budget, and local insights. With AI-powered planning, smart recommendations, and a built-in chat assistant, it helps travelers save time and enjoy seamless trips with ease.
         </p>
 
         <div className="grid gap-4 md:grid-cols-3">
