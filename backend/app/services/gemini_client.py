@@ -74,12 +74,12 @@ async def _generate_once(model: str, prompt: str) -> str:
 
 
 async def generate_json(prompt: str) -> dict[str, Any]:
-    # 1. Prefer Groq if available (lightning fast, highly reliable)
+    # 1. Prefer Groq (lightning fast, highly reliable, no Google Cloud 404s)
     if settings.GROQ_API_KEY:
         try:
             from .groq_client import _generate_once as groq_generate_once
             print("[GROQ] Generating JSON with llama-3.3-70b-versatile...")
-            groq_text = await groq_generate_once("llama-3.3-70b-versatile", prompt)
+            groq_text = await groq_generate_once("llama-3.3-70b-versatile", prompt, json_mode=True)
             return _extract_json(groq_text)
         except Exception as ge:
             print(f"[GROQ] Failed: {ge}. Falling back to Gemini...")
@@ -95,7 +95,7 @@ async def generate_json(prompt: str) -> dict[str, Any]:
             last_err = e
             continue
 
-    raise last_err or RuntimeError("AI generation failed. Ensure GROQ_API_KEY or a valid GEMINI_API_KEY is configured in Render.")
+    raise last_err or RuntimeError("AI generation failed. Ensure GROQ_API_KEY or a valid GEMINI_API_KEY is configured.")
 
 
 async def generate_text(prompt: str, use_search: bool = False) -> str:
@@ -104,7 +104,7 @@ async def generate_text(prompt: str, use_search: bool = False) -> str:
         try:
             from .groq_client import _generate_once as groq_generate_once
             print("[GROQ] Generating text with llama-3.3-70b-versatile...")
-            groq_text = await groq_generate_once("llama-3.3-70b-versatile", prompt)
+            groq_text = await groq_generate_once("llama-3.3-70b-versatile", prompt, json_mode=False)
             if groq_text:
                 return str(groq_text).strip()
         except Exception as ge:
@@ -123,7 +123,7 @@ async def generate_text(prompt: str, use_search: bool = False) -> str:
             last_err = e
             continue
 
-    raise last_err or RuntimeError("AI generation failed. Ensure GROQ_API_KEY or a valid GEMINI_API_KEY is configured in Render.")
+    raise last_err or RuntimeError("AI generation failed. Ensure GROQ_API_KEY or a valid GEMINI_API_KEY is configured.")
 
 
 async def _stream_generate_once(model: str, prompt: str):

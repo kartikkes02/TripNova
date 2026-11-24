@@ -23,8 +23,8 @@ GROQ_MODELS = [
 ]
 
 @retry(wait=wait_exponential(min=1, max=10), stop=stop_after_attempt(3))
-async def _generate_once(model: str, prompt: str) -> str:
-    print(f"[GROQ API] Generating with model: {model} | Prompt length: {len(prompt)}")
+async def _generate_once(model: str, prompt: str, json_mode: bool = False) -> str:
+    print(f"[GROQ API] Generating with model: {model} | Prompt length: {len(prompt)} | json_mode: {json_mode}")
     if not settings.GROQ_API_KEY:
         raise RuntimeError("GROQ_API_KEY is missing in environment")
 
@@ -37,10 +37,12 @@ async def _generate_once(model: str, prompt: str) -> str:
     payload = {
         "model": model,
         "messages": [{"role": "user", "content": prompt}],
-        "temperature": 0.7,
-        "max_tokens": 2048,
+        "temperature": 0.4 if json_mode else 0.7,
+        "max_tokens": 4096,
         "top_p": 0.9,
     }
+    if json_mode:
+        payload["response_format"] = {"type": "json_object"}
 
     async with httpx.AsyncClient(timeout=60.0) as client:
         r = await client.post(url, headers=headers, json=payload)
