@@ -550,12 +550,12 @@ async def generate_plan(*, user_id: str, email: str, full_name: str, form: dict[
 
     email_sent = False
     try:
-        print(f"Sending email to: {email}")
-        await send_email(email, subject, body, body_html)
+        print(f"Queueing email in background to: {email}")
+        asyncio.create_task(send_email(email, subject, body, body_html))
         email_sent = True
-        print("Email sent successfully")
+        print("Email queued successfully")
     except Exception as e:
-        print(f"Email sending failed: {str(e)}")
+        print(f"Email queueing failed: {str(e)}")
         email_sent = False
 
     resp = data.copy()

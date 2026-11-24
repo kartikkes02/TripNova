@@ -85,7 +85,8 @@ export default function ChatAssistant({ itineraryId }) {
     try {
       // Use standard fetch for streaming
       const token = localStorage.getItem('authToken') || ''
-      const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
+      const rawBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
+      const baseUrl = rawBaseUrl.replace(/\/+$/, '')
       const response = await fetch(`${baseUrl}/api/ai/chat/stream`, {
         method: 'POST',
         credentials: 'include',

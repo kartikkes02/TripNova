@@ -32,7 +32,7 @@ from ..core.rate_limiter import limiter
 router = APIRouter()
 
 def get_base_url() -> str:
-    return settings.BASE_URL
+    return settings.BASE_URL.rstrip("/")
 
 def get_default_frontend_url() -> str:
     if settings.FRONTEND_URLS:

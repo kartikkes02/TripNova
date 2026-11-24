@@ -10,28 +10,21 @@ from tenacity import retry, stop_after_attempt, wait_exponential
 from ..core.config import settings
 
 GENERATION_MODELS = [
-    "gemini-2.5-flash",
-    "gemini-flash-lite-latest",
-    "gemini-flash-latest",
-    "gemini-2.0-flash-lite",
     "gemini-2.0-flash",
-    "gemini-2.5-flash-lite",
-    "gemini-2.5-pro"
+    "gemini-1.5-flash",
+    "gemini-1.5-pro",
+    "gemini-2.0-flash-lite",
 ]
 
 LIVE_SEARCH_SYNTHESIS_MODELS = [
-    "gemini-2.5-flash",
-    "gemini-flash-lite-latest",
-    "gemini-flash-latest",
-    "gemini-3.5-flash",
     "gemini-2.0-flash",
+    "gemini-1.5-flash",
+    "gemini-1.5-pro",
 ]
 
 FALLBACK_MODELS = [
-    "gemini-2.5-flash",
-    "gemini-flash-lite-latest",
-    "gemini-flash-latest",
-    "gemini-2.0-flash-lite",
+    "gemini-1.5-flash",
+    "gemini-2.0-flash",
 ]
 
 def _get_models(use_search: bool = False) -> list[str]:
@@ -94,6 +87,16 @@ async def generate_json(prompt: str) -> dict[str, Any]:
                     print(f"[GEMINI API] Rate limit (429) hit for {model}. Falling back to next model...")
             last_err = e
             continue
+    # Fallback to Groq if Gemini is exhausted/rate limited
+    if settings.GROQ_API_KEY:
+        try:
+            from .groq_client import _generate_once as groq_generate_once
+            print("[GROQ FALLBACK] Attempting JSON generation with Groq...")
+            groq_text = await groq_generate_once("llama-3.3-70b-versatile", prompt)
+            return _extract_json(groq_text)
+        except Exception as ge:
+            print(f"[GROQ FALLBACK] Failed: {ge}")
+
     raise last_err or RuntimeError("Gemini generation failed for all models")
 
 
@@ -116,6 +119,16 @@ async def generate_text(prompt: str, use_search: bool = False) -> str:
                     print(f"[GEMINI API] Rate limit (429) hit for {model}. Falling back to next model...")
             last_err = e
             continue
+    # Fallback to Groq if Gemini is exhausted/rate limited
+    if settings.GROQ_API_KEY:
+        try:
+            from .groq_client import _generate_once as groq_generate_once
+            print("[GROQ FALLBACK] Attempting JSON generation with Groq...")
+            groq_text = await groq_generate_once("llama-3.3-70b-versatile", prompt)
+            return str(groq_text).strip()
+        except Exception as ge:
+            print(f"[GROQ FALLBACK] Failed: {ge}")
+
     raise last_err or RuntimeError("Gemini generation failed for all models")
 
 

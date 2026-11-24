@@ -133,7 +133,8 @@ export function AuthProvider({ children }) {
       try {
         console.log('Initiating Google sign in')
         const origin = encodeURIComponent(window.location.origin)
-        window.location.href = `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'}/api/auth/google?state=${origin}`
+        const apiBase = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000').replace(/\/+$/, '')
+        window.location.href = `${apiBase}/api/auth/google?state=${origin}`
       } catch (error) {
         console.error('Google sign in error:', error)
         throw error
@@ -144,7 +145,8 @@ export function AuthProvider({ children }) {
       try {
         console.log('Initiating GitHub sign in')
         const origin = encodeURIComponent(window.location.origin)
-        window.location.href = `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'}/api/auth/github?state=${origin}`
+        const apiBase = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000').replace(/\/+$/, '')
+        window.location.href = `${apiBase}/api/auth/github?state=${origin}`
       } catch (error) {
         console.error('GitHub sign in error:', error)
         throw error
@@ -155,7 +157,8 @@ export function AuthProvider({ children }) {
       try {
         console.log('Initiating LinkedIn sign in')
         const origin = encodeURIComponent(window.location.origin)
-        window.location.href = `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'}/api/auth/linkedin?state=${origin}`
+        const apiBase = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000').replace(/\/+$/, '')
+        window.location.href = `${apiBase}/api/auth/linkedin?state=${origin}`
       } catch (error) {
         console.error('LinkedIn sign in error:', error)
         throw error
