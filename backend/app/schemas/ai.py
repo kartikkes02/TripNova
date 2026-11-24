@@ -19,9 +19,9 @@ class GeneratePlanRequest(BaseModel):
 
 class HotelModel(BaseModel):
     name: str | None = None
-    price: float | None = None
-    rating: float | None = None
-    location: str
+    price: Any | None = None
+    rating: Any | None = None
+    location: str | None = None
     mapsLink: str | None = None
 
 

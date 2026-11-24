@@ -459,13 +459,13 @@ async def generate_plan(*, user_id: str, email: str, full_name: str, form: dict[
 
         hotels = []
         for h in generation.get("hotels", [])[:10]:
-            loc = h.get("location") or h.get("city") or ""
+            loc = h.get("location") or h.get("city") or form.get("destination", "")
             hotels.append(
                 {
-                    "name": h.get("name"),
+                    "name": h.get("name") or "Recommended Stay",
                     "price": h.get("price"),
                     "rating": h.get("rating"),
-                    "location": loc,
+                    "location": loc or "City Center",
                     "mapsLink": h.get("mapsLink")
                     or (_google_maps_link(loc) if loc else _google_maps_link(form["destination"])),
                 }
