@@ -12,7 +12,7 @@ import linkedinIcon from '../images/linkden.png'
 const social = [
   // { src: fbIcon, href: 'https://www.facebook.com/royalbinod.kapadi', label: 'Facebook' },
   // { src: discordIcon, href: 'https://discord.com/users/1020520872206938153', label: 'Discord' },
-  { src: githubIcon, href: 'https://github.com/bkartikkes02', label: 'GitHub' },
+  { src: githubIcon, href: 'https://github.com/kartikkes02', label: 'GitHub' },
   { src: instagramIcon, href: 'https://www.instagram.com/kartikkes02', label: 'Instagram' },
   // { src: telegramIcon, href: 'https://t.me/errevolution1', label: 'Telegram' },
   // { src: twitterIcon, href: 'https://x.com/KapadiBinod', label: 'Twitter' },
