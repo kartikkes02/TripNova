@@ -70,7 +70,7 @@ USER TRIP DETAILS:
 - Travel Dates: {form['startDate']} to {form['endDate']}
 - Number Of People: {form['numberOfPeople']}
 - Travel Type: {form['travelType']}
-- Budget: {form['budget']} USD
+- Budget: ₹{form['budget']} INR
 - Preferred Transport: {form['transportMode']}
 - Preferences: {form.get('preferences', '')} (If preferences are missing, assume standard tourist experience with balanced sightseeing and food focus)
 
@@ -93,6 +93,7 @@ LIVE RECOMMENDATIONS (WEB SEARCH):
 ---
 
 STRICT GENERATION RULES:
+- CURRENCY RULE (CRITICAL): ALL prices, budgets, hotel rates, transport fares, meals, and activity fees MUST be strictly in Indian Rupees (INR / ₹). NEVER output USD or $.
 - You MUST base your generation on the REAL-WORLD DATA provided above. Do not hallucinate prices, transport, or hotels if real data is provided. If real-world data is missing for any section, explicitly label it as 'Estimated' and proceed using fallback rules.
 - Always adjust weather, pricing, and activities based on destination geography and season.
 - Classify destination as: Budget / Mid-range / Expensive (based on global tourism standard) and adjust all pricing accordingly.
@@ -127,30 +128,30 @@ STRICT GENERATION RULES:
 IF TRANSPORT MODE = FLIGHT:
 - Mention:
   - Major airlines operating this route
-  - EXPLICITLY state "Average One-Way Price per person: $X" (USE STANDARD ECONOMY AVERAGE)
+  - EXPLICITLY state "Average One-Way Price per person: ₹X" (USE STANDARD ECONOMY AVERAGE IN INR)
   - Flight duration
   - Example departure/arrival times
-  - Best booking websites (Skyscanner, Google Flights, Booking.com, etc.)
-  - EXPLICITLY state "Total One-Way Cost for {form['numberOfPeople']} person(s): $Y"
+  - Best booking websites (Skyscanner, Google Flights, MakeMyTrip, Booking.com, etc.)
+  - EXPLICITLY state "Total One-Way Cost for {form['numberOfPeople']} person(s): ₹Y"
 
 IF TRANSPORT MODE = TRAIN:
 - Mention:
   - Train availability and frequency
   - Major train services/operators
-  - EXPLICITLY state "Average One-Way Price per person: $X" (USE STANDARD ECONOMY AVERAGE)
+  - EXPLICITLY state "Average One-Way Price per person: ₹X" (USE STANDARD ECONOMY AVERAGE IN INR)
   - Travel duration
   - Comfort classes available
   - Best booking methods
-  - EXPLICITLY state "Total One-Way Cost for {form['numberOfPeople']} person(s): $Y"
+  - EXPLICITLY state "Total One-Way Cost for {form['numberOfPeople']} person(s): ₹Y"
 
 IF TRANSPORT MODE = BUS:
 - Mention:
   - Luxury/deluxe bus availability
-  - EXPLICITLY state "Average One-Way Price per person: $X" (USE STANDARD AVERAGE)
+  - EXPLICITLY state "Average One-Way Price per person: ₹X" (USE STANDARD AVERAGE IN INR)
   - Travel duration (including stops)
   - Day/night options
   - Popular bus operators
-  - EXPLICITLY state "Total One-Way Cost for {form['numberOfPeople']} person(s): $Y"
+  - EXPLICITLY state "Total One-Way Cost for {form['numberOfPeople']} person(s): ₹Y"
 
 IF SELECTED TRANSPORT IS NOT AVAILABLE:
 - Clearly state: "Routes of {form['transportMode']} are not available for this route."
@@ -159,13 +160,13 @@ IF SELECTED TRANSPORT IS NOT AVAILABLE:
 3. HOTELS:
 - You MUST use the LIVE HOTELS DATA provided in the real-world data section. 
 - Generate exactly 3 hotels suitable for {form['destination']} and user budget for {form['numberOfPeople']} people.
-- Prioritize the hotels retrieved from SerpAPI. If they do not match the required categories or aren't enough, fallback to realistic estimates.
+- Prioritize the hotels retrieved from SerpAPI. If they do not match the required categories or aren't enough, fallback to realistic estimates in INR.
 - Include EXACTLY these three categories if possible: Standard Stay, Premium Stay, Luxury Stay.
-- Extract the nightly price from the provided live data. Do not use decimals.
+- Extract the nightly price in INR from the provided live data (convert if needed). Return a clean numeric value without decimals or currency symbols in the JSON `price` field.
 
 For each hotel provide:
 - hotel name
-- approximate NIGHTLY PRICE (per room, not per person)
+- approximate NIGHTLY PRICE in INR (per room, not per person)
 - realistic rating out of 5
 - hotel location/area name
 - Google Maps search link(Must working for the location provided).
@@ -174,45 +175,46 @@ Hotels must:
 - Match the travel type and preferences.
 - Include both room capacity info and accessibility notes.
 
-CRITICAL: Provide realistic nightly prices for the destination (not inflated/reduced).
+CRITICAL: Provide realistic nightly prices in INR for the destination (not inflated/reduced).
 
 4. COST PREDICTOR:
-Generate a detailed cost breakdown for {form['numberOfPeople']} person(s) for {num_days} days.
+Generate a detailed cost breakdown in Indian Rupees (INR / ₹) for {form['numberOfPeople']} person(s) for {num_days} days.
 CRITICAL INSTRUCTIONS:
 - You MUST follow the exact formulas below.
+- ALL amounts MUST be in Indian Rupees (₹). Never output USD or $.
 - Do NOT generate arbitrary or dummy values.
 - Calculate subtotal first, then calculate miscellaneous, then calculate final total.
 
 ACCOMMODATION CALCULATION:
-- Use the hotel pricing data retrieved from SerpAPI (if available in live data).
+- Use the hotel pricing data in INR retrieved from SerpAPI (if available in live data).
 - Calculate average nightly rate × {num_days} nights.
 - Account for room sharing: Roughly 1 room per 2 people (adjust if needed).
-- If no pricing exists, return an estimated range and clearly label it as "Estimated". Do not fabricate luxury/premium prices.
+- If no pricing exists, return an estimated range in INR and clearly label it as "Estimated". Do not fabricate luxury/premium prices.
 
 MEALS & FOOD CALCULATION:
-- Use destination-based daily estimates.
-- Budget tier: $8-15 per traveler per day.
-- Mid-range tier: $15-35 per traveler per day.
-- Premium tier: $35-60 per traveler per day.
-- Choose tier based on overall budget: ${form['budget']}.
+- Use destination-based daily estimates in INR.
+- Budget tier: ₹500–₹1,200 per traveler per day.
+- Mid-range tier: ₹1,200–₹2,800 per traveler per day.
+- Premium tier: ₹2,800–₹5,000 per traveler per day.
+- Choose tier based on overall budget: ₹{form['budget']} INR.
 - Formula: daily_food_cost × {form['numberOfPeople']} travelers × {num_days} days.
 
 LOCAL TRANSPORT CALCULATION:
-- Use destination-specific estimates.
-- Budget tier: $3-8 per traveler per day.
-- Mid-range tier: $8-20 per traveler per day.
-- Premium tier: $20-40 per traveler per day.
+- Use destination-specific estimates in INR.
+- Budget tier: ₹250–₹650 per traveler per day.
+- Mid-range tier: ₹650–₹1,600 per traveler per day.
+- Premium tier: ₹1,600–₹3,500 per traveler per day.
 - Formula: daily_transport_cost × {form['numberOfPeople']} travelers × {num_days} days.
 
 SIGHTSEEING & ACTIVITIES CALCULATION:
-- Use actual attraction ticket prices if available in live data.
-- Otherwise estimate conservatively. Do not default to large values like $300.
+- Use actual attraction ticket prices in INR if available in live data.
+- Otherwise estimate conservatively in INR. Do not default to unrealistically large values.
 - Formula: daily_activity_cost × {form['numberOfPeople']} travelers × {num_days} days.
 
 ROUND TRIP TRAVEL ({form['transportMode']}):
-- NEVER hallucinate flight or transport costs. Use the data calculated in the TRANSPORT DETAILS section.
+- NEVER hallucinate flight or transport costs. Use the data calculated in the TRANSPORT DETAILS section in INR.
 - Formula: round_trip_cost = total_one_way_cost_for_all_travelers × 2.
-- CRITICAL: Do NOT estimate another value. If total one-way cost for 2 travelers is $208, Round Trip Cost MUST be $416.
+- CRITICAL: Do NOT estimate another value. If total one-way cost for 2 travelers is ₹15,000, Round Trip Cost MUST be ₹30,000.
 
 MISCELLANEOUS COSTS:
 - Includes tips, snacks, souvenirs, emergency purchases, and small unplanned expenses.
@@ -220,21 +222,21 @@ MISCELLANEOUS COSTS:
 - Display this separately below Round Trip Travel.
 
 TOTAL CALCULATION:
-- Final Output Format MUST exactly follow this list:
-  Accommodation: $X
-  Food: $X
-  Local Transport: $X
-  Sightseeing & Activities: $X
-  Round Trip Travel ({form['transportMode']}): $X
-  Miscellaneous Costs: $X
+- Final Output Format MUST exactly follow this list (all values in Indian Rupees ₹):
+  Accommodation: ₹X
+  Food: ₹X
+  Local Transport: ₹X
+  Sightseeing & Activities: ₹X
+  Round Trip Travel ({form['transportMode']}): ₹X
+  Miscellaneous Costs: ₹X
   
-  Total Estimated Budget: $TOTAL USD
+  Total Estimated Budget: ₹TOTAL INR
 
 Also indicate:
 - Budget level (Budget, Mid-range, or Premium)
 - Number of travelers: {form['numberOfPeople']}
 - Number of days: {num_days}
-- Explain whether the user's budget of ${form['budget']} USD is Sufficient, Tight, or Luxury.
+- Explain whether the user's budget of ₹{form['budget']} INR is Sufficient, Tight, or Luxury.
 
 Use line-by-line bullet points, not paragraphs.
 
@@ -247,10 +249,10 @@ STRICT FORMAT:
 - Each recommendation MUST start with: "• "
 - You MUST insert a literal newline character `\n` after every single recommendation.
 - Do NOT output all recommendations on a single line. They MUST be separated by newlines.
-- Include SPECIFIC activity names, locations, approximate costs
+- Include SPECIFIC activity names, locations, approximate costs in INR (₹)
 
 Recommendations should include:
-- Local foods with typical prices ($X per meal)
+- Local foods with typical prices (₹X per meal)
 - Safety tips specific to region and season
 - Best local cafes/restaurants with price range
 - Hidden gems (less touristy places) with cost estimates
@@ -383,6 +385,7 @@ async def generate_plan(*, user_id: str, email: str, full_name: str, form: dict[
         "travelType": form["travelType"],
         "numberOfPeople": form["numberOfPeople"],
         "preferences": form.get("preferences", ""),
+        "currency": "INR",
     }
     key = _cache_key(cache_payload)
 
@@ -395,9 +398,9 @@ async def generate_plan(*, user_id: str, email: str, full_name: str, form: dict[
         print(f"Number of days: {num_days}")
 
         # Concurrently fetch all real-world data
-        transport_query = f"How to travel from {form['origin']} to {form['destination']} by {form['transportMode']} price and duration"
+        transport_query = f"How to travel from {form['origin']} to {form['destination']} by {form['transportMode']} price in INR and duration"
         rag_query = f"Top things to do in {form['destination']} and travel tips matching preferences: {form.get('preferences', 'general sightseeing')}"
-        cost_query = f"Average daily tourist cost in {form['destination']} for food, local transport, and activities"
+        cost_query = f"Average daily tourist cost in {form['destination']} in INR for food, local transport, and activities"
 
         if form['transportMode'].lower() == 'flight':
             transport_coro = search_flights(form['origin'], form['destination'], form['startDate'])

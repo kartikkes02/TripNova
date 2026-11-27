@@ -80,7 +80,7 @@ CURRENCY INSTRUCTIONS:
     cost_predictor = data.get("costPredictor", "Not available")
     transport_details = data.get("transportDetails", "Not available")
     weather_insights = data.get("weatherInsights", "Not available")
-    hotels_info = "\n".join(f"- {h.get('name')} (${h.get('price')}): {h.get('location')}" for h in data.get("hotels", [])) if data.get("hotels") else "Not available"
+    hotels_info = "\n".join(f"- {h.get('name')} (₹{h.get('price')}): {h.get('location')}" for h in data.get("hotels", [])) if data.get("hotels") else "Not available"
 
     prompt = f"""
 You are an advanced AI-powered Travel Assistant integrated inside a smart trip planning platform.
@@ -117,7 +117,7 @@ ITINERARY CONTEXT:
 The user is asking about their trip. Here is relevant context from their itinerary:
 - Origin: {origin}
 - Destination: {destination}
-- Entered Budget: {budget} USD
+- Entered Budget: ₹{budget} INR
 
 [COST PREDICTOR & TOTAL ESTIMATES]
 {cost_predictor}

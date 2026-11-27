@@ -22,10 +22,10 @@ function parseCurrencyValue(text) {
   if (!text) return undefined
   const normalized = text.replace(/,/g, '')
 
-  const explicitMoney = [...normalized.matchAll(/(?:\$|usd|dollars|bucks|eur|€|£|₹)\s*([0-9]+(?:\.[0-9]{1,2})?)/gi)]
+  const explicitMoney = [...normalized.matchAll(/(?:₹|inr|rs\.?|rupees|\$|usd|dollars|bucks|eur|€|£)\s*([0-9]+(?:\.[0-9]{1,2})?)/gi)]
   if (explicitMoney.length) return Number(explicitMoney[0][1])
 
-  const explicitAfter = [...normalized.matchAll(/([0-9]+(?:\.[0-9]{1,2})?)\s*(?:usd|dollars|bucks|eur|€|£|₹)/gi)]
+  const explicitAfter = [...normalized.matchAll(/([0-9]+(?:\.[0-9]{1,2})?)\s*(?:₹|inr|rs\.?|rupees|usd|dollars|bucks|eur|€|£)/gi)]
   if (explicitAfter.length) return Number(explicitAfter[0][1])
 
   const numberMatches = [...normalized.matchAll(/([0-9]+(?:\.[0-9]{1,2})?)/g)].map((m) => Number(m[1])).filter((n) => !Number.isNaN(n))
@@ -60,15 +60,15 @@ function extractCostValue(lines, labels) {
 
 function formatCurrency(value) {
   if (typeof value !== 'number' || Number.isNaN(value)) return '--'
-  return `$${value.toLocaleString('en-US')}`
+  return `₹${Math.round(value).toLocaleString('en-IN')}`
 }
 
 function deriveBudgetCategory(total, budget, days, people) {
   if (!budget || !days || !people) return 'Standard'
   const perPersonPerDay = budget / (days * people)
-  if (perPersonPerDay <= 70) return 'Budget/Compact'
-  if (perPersonPerDay <= 150) return 'Standard'
-  if (perPersonPerDay <= 300) return 'Premium'
+  if (perPersonPerDay <= 3000) return 'Budget/Compact'
+  if (perPersonPerDay <= 8000) return 'Standard'
+  if (perPersonPerDay <= 18000) return 'Premium'
   return 'Luxury'
 }
 
@@ -361,15 +361,15 @@ export default function PlanPage() {
     const baseBudget = Number(form.budget) || 0
 
     const defaultTravelCost = {
-      Flight: 250,
-      Train: 140,
-      Bus: 90,
+      Flight: 6000,
+      Train: 1500,
+      Bus: 800,
     }
-    const travelUnit = defaultTravelCost[form.transportMode] || 120
+    const travelUnit = defaultTravelCost[form.transportMode] || 2000
     const fallbackTravelCost = Math.round(travelUnit * peopleCount)
     const fallbackReturnTravelCost = Math.round(travelUnit * peopleCount)
 
-    const lowBudget = baseBudget < 500
+    const lowBudget = baseBudget < 15000
 
     // Calculate accommodation using actual hotel prices if available
     let calculatedAccommodation
@@ -377,18 +377,18 @@ export default function PlanPage() {
       calculatedAccommodation = accommodation
     } else if (hotelCards && hotelCards.length > 0) {
       // Use average hotel price × nights × number of rooms needed
-      const avgHotelPrice = hotelCards.reduce((sum, h) => sum + (h.price || 0), 0) / hotelCards.length
+      const avgHotelPrice = hotelCards.reduce((sum, h) => sum + (Number(String(h.price || 0).replace(/[^0-9.]/g, '')) || 0), 0) / hotelCards.length
       // For groups, assume need multiple rooms (1 room per 2 people minimum)
       const roomsNeeded = Math.ceil(peopleCount / 2)
       calculatedAccommodation = Math.round(avgHotelPrice * daysCount * roomsNeeded)
     } else {
-      // Fallback to fixed per-night rates if no hotel data
-      calculatedAccommodation = Math.round(Math.max(baseBudget * 0.24, daysCount * peopleCount * (lowBudget ? 60 : 110)))
+      // Fallback to fixed per-night rates in INR if no hotel data
+      calculatedAccommodation = Math.round(Math.max(baseBudget * 0.24, daysCount * peopleCount * (lowBudget ? 1500 : 3500)))
     }
 
-    const calculatedFood = food ?? Math.round(Math.max(baseBudget * 0.12, daysCount * peopleCount * (lowBudget ? 25 : 40)))
-    const calculatedLocalTransport = localTransport ?? Math.round(Math.max(baseBudget * 0.08, daysCount * peopleCount * (lowBudget ? 15 : 25)))
-    const calculatedActivities = activities ?? Math.round(Math.max(baseBudget * 0.14, daysCount * peopleCount * (lowBudget ? 30 : 45)))
+    const calculatedFood = food ?? Math.round(Math.max(baseBudget * 0.12, daysCount * peopleCount * (lowBudget ? 600 : 1400)))
+    const calculatedLocalTransport = localTransport ?? Math.round(Math.max(baseBudget * 0.08, daysCount * peopleCount * (lowBudget ? 400 : 900)))
+    const calculatedActivities = activities ?? Math.round(Math.max(baseBudget * 0.14, daysCount * peopleCount * (lowBudget ? 500 : 1500)))
 
     const calculatedTravelCost = roundTripTravel ? Math.round(roundTripTravel / 2) : (travelCost ?? fallbackTravelCost)
     const calculatedReturnTravelCost = roundTripTravel ? Math.round(roundTripTravel / 2) : (returnTravelCost ?? travelCost ?? fallbackReturnTravelCost)
@@ -409,7 +409,7 @@ export default function PlanPage() {
     const useItemSum = qualityTotal >= 4
     const totalFromLines = useItemSum ? itemSum : undefined
     const shouldUseSum = typeof totalEstimated === 'number'
-      ? Math.abs((totalFromLines ?? 0) - totalEstimated) > Math.max(15, Math.round((totalFromLines ?? totalEstimated) * 0.12))
+      ? Math.abs((totalFromLines ?? 0) - totalEstimated) > Math.max(500, Math.round((totalFromLines ?? totalEstimated) * 0.12))
       : false
 
     const calculatedTotal = useItemSum && (!totalEstimated || shouldUseSum)
@@ -626,7 +626,7 @@ export default function PlanPage() {
           </label>
 
           <label className="text-sm text-[color:var(--text-soft)]">
-            Budget ($)
+            Budget (₹ INR)
             <input
               className="mt-1 w-full rounded-xl bg-[color:var(--glass)] px-3 py-2 outline-none ring-1 ring-[color:var(--glass-border)]"
               type="number"
@@ -845,7 +845,9 @@ export default function PlanPage() {
                   <div className="p-4">
                     <div className="flex items-start justify-between gap-3">
                       <div className="text-sm font-semibold truncate" title={h.name}>{h.name || 'Hotel'}</div>
-                      <div className="text-xs font-bold text-orange-200 shrink-0">{h.price ? `$${h.price}` : ''}</div>
+                      <div className="text-xs font-bold text-orange-200 shrink-0">
+                        {h.price ? `₹${Number(String(h.price).replace(/[^0-9.]/g, '') || 0).toLocaleString('en-IN')}` : ''}
+                      </div>
                     </div>
                     <div className="mt-1 text-xs text-[color:var(--text-muted)] flex items-center gap-1">
                       <span className="text-yellow-500">★</span> {h.rating ?? 'N/A'} / 5
@@ -913,15 +915,15 @@ export default function PlanPage() {
               <div className="mt-6 border-t border-[color:var(--glass-border)] pt-4">
                 <div className="flex items-center justify-between gap-3 text-sm text-[color:var(--text-muted)]">
                   <span className="font-medium">Total Estimated Budget</span>
-                  <span className="font-semibold text-[color:var(--text)]">{formatCurrency(budgetSummary.totalEstimated)} USD</span>
+                  <span className="font-semibold text-[color:var(--text)]">{formatCurrency(budgetSummary.totalEstimated)} INR</span>
                 </div>
                 <div className="mt-2 flex items-center justify-between gap-3 text-sm text-[color:var(--text-muted)]">
                   <span>Your Entered Budget</span>
-                  <span className="font-semibold text-[color:var(--text)]">{formatCurrency(budgetSummary.enteredBudget)} USD</span>
+                  <span className="font-semibold text-[color:var(--text)]">{formatCurrency(budgetSummary.enteredBudget)} INR</span>
                 </div>
                 <div className="mt-2 flex items-center justify-between gap-3 text-sm">
                   <span>Remaining Balance</span>
-                  <span className="font-semibold text-[color:var(--text)]">{formatCurrency(budgetSummary.remaining)} USD</span>
+                  <span className="font-semibold text-[color:var(--text)]">{formatCurrency(budgetSummary.remaining)} INR</span>
                 </div>
               </div>
 

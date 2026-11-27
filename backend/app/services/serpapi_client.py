@@ -128,7 +128,7 @@ async def search_hotels(destination: str, check_in: str, check_out: str, adults:
         "check_in_date": check_in,
         "check_out_date": check_out,
         "adults": adults,
-        "currency": "USD",
+        "currency": "INR",
         "api_key": settings.SERPAPI_KEY,
     }
 
@@ -149,9 +149,10 @@ async def search_hotels(destination: str, check_in: str, check_out: str, adults:
             price = prop.get("rate_per_night", {}).get("lowest", "N/A")
             if price == "N/A":
                 price = prop.get("total_rate", {}).get("lowest", "N/A")
+            clean_price = str(price).lstrip("₹$ ").strip()
             rating = prop.get("overall_rating", "N/A")
             link = prop.get("link", "")
-            hotel_list.append(f"- {name}: ${price}/night (Rating: {rating}) [Link: {link}]")
+            hotel_list.append(f"- {name}: ₹{clean_price}/night (Rating: {rating}) [Link: {link}]")
 
         if hotel_list:
             return f"Live Hotel Data for {destination} ({check_in} to {check_out}):\n" + "\n".join(hotel_list)
@@ -211,7 +212,7 @@ async def search_flights(origin: str, destination: str, date: str) -> str:
         "departure_id": departure_id,
         "arrival_id": arrival_id,
         "outbound_date": date,
-        "currency": "USD",
+        "currency": "INR",
         "hl": "en",
         "api_key": settings.SERPAPI_KEY,
     }
@@ -252,11 +253,11 @@ async def search_flights(origin: str, destination: str, date: str) -> str:
         airline_str = ", ".join(list(airlines)[:3])
 
         return (
-            f"LIVE GOOGLE FLIGHTS DATA:\n"
+            f"LIVE GOOGLE FLIGHTS DATA (in INR):\n"
             f"- Major Airlines Operating: {airline_str}\n"
-            f"- Exact Lowest One-Way Economy Price found: ${min_price}\n"
-            f"- Average One-Way Economy Price found: ${avg_price:.0f}\n"
-            f"(Use the Exact Lowest Price for cost calculations if applicable)"
+            f"- Exact Lowest One-Way Economy Price found: ₹{min_price}\n"
+            f"- Average One-Way Economy Price found: ₹{avg_price:.0f}\n"
+            f"(Use the Exact Lowest Price in INR for cost calculations if applicable)"
         )
 
     except Exception as e:
