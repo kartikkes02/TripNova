@@ -36,7 +36,7 @@ export default function Footer() {
               </motion.div>
               <div className="flex items-baseline gap-1">
                 <span className="text-lg font-extrabold text-white">Trip</span>
-                <span className="text-lg font-extrabold text-orange-400">Advisor</span>
+                <span className="text-lg font-extrabold text-orange-400">Nova</span>
               </div>
             </Link>
 
