@@ -12,10 +12,23 @@ function Skeleton({ className = '' }) {
 
 function daysArrayFromItinerary(itinerary) {
   if (!itinerary) return []
-  if (Array.isArray(itinerary)) return itinerary
-  if (Array.isArray(itinerary.days)) return itinerary.days
-  if (typeof itinerary === 'string') return itinerary.split('\n').filter(Boolean)
-  return []
+  const raw = Array.isArray(itinerary)
+    ? itinerary
+    : Array.isArray(itinerary.days)
+      ? itinerary.days
+      : typeof itinerary === 'string'
+        ? itinerary.split(/(?=\bDay\s+\d+\s*:)/i).filter(Boolean)
+        : []
+
+  return raw.map((item, idx) => {
+    if (typeof item === 'string') return item
+    if (item && typeof item === 'object') {
+      const title = item.title || item.heading || `Day ${idx + 1}`
+      const acts = Array.isArray(item.activities) ? item.activities.map((a) => `• ${typeof a === 'string' ? a : (a.activity || a.description || a.title || '')}`) : []
+      return [title, ...acts].filter(Boolean).join('\n')
+    }
+    return String(item || '')
+  })
 }
 
 function parseCurrencyValue(text) {
@@ -957,12 +970,18 @@ export default function PlanPage() {
               <span className="text-xl">🤖</span> AI Recommendations
             </div>
             <div className="grid gap-2">
-              {result.aiRecommendations.split(/(?:\n|•)/).filter(l => l.trim()).map((rec, i) => (
+              {(Array.isArray(result.aiRecommendations)
+                ? result.aiRecommendations.map((r) => String(r))
+                : String(result.aiRecommendations || '').split(/(?:\n|•)/)
+              ).filter(l => l.trim()).map((rec, i) => (
                 <div key={i} className="flex gap-3 text-sm text-[color:var(--text-soft)] bg-[color:var(--glass-strong)] p-3 rounded-xl border border-[color:var(--glass-border)]">
                   <span className="text-orange-400 shrink-0">✦</span>
                   <span className="leading-relaxed">{rec.replace(/^[-*•]\s*/, '').trim()}</span>
                 </div>
               ))}
+              {!result.aiRecommendations ? (
+                <div className="text-xs text-[color:var(--text-muted)] italic">No recommendations available for this trip.</div>
+              ) : null}
             </div>
           </div>
 
@@ -972,7 +991,10 @@ export default function PlanPage() {
             </div>
             <div className="grid gap-6">
               {days.map((d, idx) => {
-                const lines = d.split('\n').filter(l => l.trim())
+                let lines = String(d || '').split('\n').filter(l => l.trim())
+                if (lines.length === 1 && lines[0].includes('•')) {
+                  lines = lines[0].split('•').map(s => s.trim()).filter(Boolean)
+                }
                 const title = lines[0] || `Day ${idx + 1}`
                 const activities = lines.slice(1)
                 

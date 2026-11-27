@@ -31,15 +31,25 @@ async def _get_groq_models(clean_key: str) -> list[str]:
             )
             if r.status_code == 200:
                 data = r.json()
+                excluded = ["whisper", "guard", "orpheus", "tts", "audio", "voice"]
                 active = [
                     m["id"]
                     for m in data.get("data", [])
-                    if not m.get("id", "").startswith("whisper")
-                    and "guard" not in m.get("id", "").lower()
+                    if not any(ex in m.get("id", "").lower() for ex in excluded)
                 ]
-                if active:
-                    print(f"[GROQ API] Discovered {len(active)} active models on Groq: {active[:5]}")
-                    return active
+                preferred_order = [
+                    "qwen/qwen3.8-27b",
+                    "allam-2-7b",
+                    "openai/gpt-oss-120b",
+                    "openai/gpt-oss-20b",
+                    "llama-3.3-70b-versatile",
+                ]
+                sorted_models = [m for m in preferred_order if m in active] + [
+                    m for m in active if m not in preferred_order
+                ]
+                if sorted_models:
+                    print(f"[GROQ API] Discovered & prioritized active text models: {sorted_models}")
+                    return sorted_models
     except Exception as e:
         print(f"[GROQ API] Dynamic model discovery failed: {e}")
 
@@ -47,7 +57,8 @@ async def _get_groq_models(clean_key: str) -> list[str]:
 
 
 def _extract_json(text: str) -> dict[str, Any]:
-    stripped = text.strip()
+    # Strip Qwen/DeepSeek <think>...</think> blocks before parsing JSON
+    stripped = re.sub(r"<think>[\s\S]*?</think>", "", text, flags=re.IGNORECASE).strip()
     try:
         return json.loads(stripped)
     except Exception:
@@ -83,20 +94,28 @@ async def _generate_once(model: str, prompt: str, json_mode: bool = False) -> st
         "model": model,
         "messages": [{"role": "user", "content": prompt}],
         "temperature": 0.3 if json_mode else 0.7,
-        "max_tokens": 4096,
+        "max_tokens": 8192 if json_mode else 4096,
         "top_p": 0.9,
     }
     if json_mode:
         payload["response_format"] = {"type": "json_object"}
 
-    async with httpx.AsyncClient(timeout=45.0) as client:
+    async with httpx.AsyncClient(timeout=60.0) as client:
         r = await client.post(url, headers=headers, json=payload)
 
-        # If strict json_object rejected with 400, retry once without response_format
-        if r.status_code == 400 and json_mode:
-            print(f"[GROQ API] Retrying {model} without response_format due to 400: {r.text[:200]}")
-            payload.pop("response_format", None)
-            r = await client.post(url, headers=headers, json=payload)
+        # If max_tokens=8192 or strict json_object rejected with 400, retry with safer settings
+        if r.status_code == 400:
+            err_lower = r.text.lower()
+            retried = False
+            if "max_tokens" in err_lower or "max_completion_tokens" in err_lower:
+                payload["max_tokens"] = 4096
+                retried = True
+            if json_mode:
+                print(f"[GROQ API] Retrying {model} without response_format due to 400: {r.text[:200]}")
+                payload.pop("response_format", None)
+                retried = True
+            if retried:
+                r = await client.post(url, headers=headers, json=payload)
 
         if r.status_code >= 400:
             err_body = r.text[:350]

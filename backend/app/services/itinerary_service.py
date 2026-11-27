@@ -300,11 +300,126 @@ RULES:
 - Plans should feel personalized and intelligent.
 
 VERY IMPORTANT:
-- optimizedItinerary.days must contain EXACTLY {num_days} items.
-- Every day string must already include proper formatting.
+- ALL 6 JSON keys (`weatherInsights`, `transportDetails`, `hotels`, `costPredictor`, `aiRecommendations`, `optimizedItinerary`) are MANDATORY and MUST NOT be empty for ANY travelType (Solo, Couple, Family, or Group/Friends).
+- `aiRecommendations` MUST be a non-empty newline-separated string of 4–8 bullet tips.
+- `optimizedItinerary.days` MUST contain EXACTLY {num_days} detailed string items (one per day, never empty).
+- Every day string must already include proper formatting with newline-separated `• HH:MM AM/PM - Activity` bullets.
 - Do NOT repeat Day headings multiple times.
 - Keep response highly professional and tourism-quality.
 """
+
+
+def _normalize_ai_recommendations(raw_recs: Any) -> str:
+    if not raw_recs:
+        return ""
+    if isinstance(raw_recs, str):
+        text = raw_recs.strip()
+        # Ensure inline bullets separated onto new lines if LLM put them on one line
+        if "\n" not in text and "•" in text:
+            parts = [p.strip() for p in text.split("•") if p.strip()]
+            return "\n".join(f"• {p}" for p in parts)
+        return text
+    if isinstance(raw_recs, list):
+        items: list[str] = []
+        for item in raw_recs:
+            if isinstance(item, dict):
+                val = item.get("text") or item.get("description") or item.get("tip") or item.get("recommendation") or item.get("title") or ""
+                s = str(val).strip()
+            else:
+                s = str(item).strip()
+            if s:
+                items.append(s if s.startswith(("•", "-", "*")) else f"• {s}")
+        return "\n".join(items)
+    if isinstance(raw_recs, dict):
+        return "\n".join(f"• {k}: {v}" for k, v in raw_recs.items() if v)
+    return str(raw_recs).strip()
+
+
+def _format_day_entry(day_item: Any, idx: int) -> str:
+    if isinstance(day_item, str):
+        text = day_item.strip()
+        if not text:
+            return ""
+        # If LLM placed bullets inline on one line without newlines, split cleanly so UI renders activities
+        if "\n" not in text and "•" in text:
+            parts = [p.strip() for p in text.split("•") if p.strip()]
+            if len(parts) > 1:
+                return parts[0] + "\n" + "\n".join(f"• {p}" for p in parts[1:])
+        return text
+
+    if isinstance(day_item, dict):
+        raw_title = str(day_item.get("title") or day_item.get("heading") or day_item.get("theme") or f"Day {idx + 1}").strip()
+        if not raw_title.lower().startswith("day"):
+            title = f"Day {idx + 1}: {raw_title}"
+        else:
+            title = raw_title
+
+        activities_raw = (
+            day_item.get("activities")
+            or day_item.get("schedule")
+            or day_item.get("items")
+            or day_item.get("plan")
+            or day_item.get("events")
+        )
+        lines = [title]
+        if isinstance(activities_raw, list):
+            for act in activities_raw:
+                if isinstance(act, dict):
+                    t = act.get("time") or act.get("slot") or ""
+                    desc = act.get("activity") or act.get("description") or act.get("title") or act.get("details") or ""
+                    line = f"{t} - {desc}".strip(" -") if t else str(desc).strip()
+                else:
+                    line = str(act).strip()
+                if line:
+                    lines.append(line if line.startswith(("•", "-", "*")) else f"• {line}")
+        elif isinstance(activities_raw, str) and activities_raw.strip():
+            lines.append(activities_raw.strip())
+        else:
+            for slot in ("morning", "afternoon", "evening", "night"):
+                val = day_item.get(slot)
+                if val:
+                    lines.append(f"• {slot.capitalize()} - {val}")
+        return "\n".join(lines) if len(lines) > 1 else ""
+
+    return str(day_item).strip()
+
+
+def _normalize_days(raw_optimized: Any, num_days: int, generation: dict[str, Any] | None = None) -> list[str]:
+    import re
+
+    candidate = raw_optimized
+    if not candidate and generation:
+        candidate = generation.get("optimized_itinerary") or generation.get("itinerary") or generation.get("days")
+
+    raw_list: list[Any] = []
+    if isinstance(candidate, dict):
+        if isinstance(candidate.get("days"), list):
+            raw_list = candidate["days"]
+        else:
+            # Handle dicts shaped like {"Day 1": "...", "Day 2": "..."}
+            day_keys = [k for k in candidate.keys() if "day" in str(k).lower()]
+            for dk in day_keys:
+                val = candidate[dk]
+                if isinstance(val, str):
+                    raw_list.append(val if val.lower().startswith("day") else f"{dk}: {val}")
+                else:
+                    raw_list.append(val)
+    elif isinstance(candidate, list):
+        raw_list = candidate
+    elif isinstance(candidate, str) and candidate.strip():
+        chunks = re.split(r"(?=\bDay\s+\d+\s*:)", candidate.strip(), flags=re.IGNORECASE)
+        raw_list = [c.strip() for c in chunks if c.strip()]
+
+    formatted = [_format_day_entry(item, i) for i, item in enumerate(raw_list)]
+    formatted = [d for d in formatted if d]
+    return formatted[:num_days] if formatted else []
+
+
+def _is_complete_plan(data: dict[str, Any]) -> bool:
+    recs = str(data.get("aiRecommendations") or "").strip()
+    days = (data.get("optimizedItinerary") or {}).get("days") or []
+    valid_days = [d for d in days if isinstance(d, str) and len(d.strip()) > 25]
+    return bool(recs) and len(valid_days) > 0
 
 async def _upsert_user(user_id: str, email: str, full_name: str) -> None:
     await mongo.connect()
@@ -386,11 +501,12 @@ async def generate_plan(*, user_id: str, email: str, full_name: str, form: dict[
         "numberOfPeople": form["numberOfPeople"],
         "preferences": form.get("preferences", ""),
         "currency": "INR",
+        "promptVersion": "v2-inr",
     }
     key = _cache_key(cache_payload)
 
     cached = await mongo.collection("itineraries").find_one({"cacheKey": key})
-    if cached and cached.get("data"):
+    if cached and cached.get("data") and _is_complete_plan(cached["data"]):
         itinerary_id = cached.get("itineraryId") or str(uuid.uuid4())
         data = cached["data"]
     else:
@@ -474,12 +590,58 @@ async def generate_plan(*, user_id: str, email: str, full_name: str, form: dict[
                 }
             )
 
-        optimized = generation.get("optimizedItinerary") or {}
-        days = optimized.get("days") or []
-        if isinstance(days, list):
-            days = (days + [""])[:num_days]
-        else:
+        ai_recs = _normalize_ai_recommendations(
+            generation.get("aiRecommendations")
+            or generation.get("ai_recommendations")
+            or generation.get("recommendations")
+        )
+        days = _normalize_days(generation.get("optimizedItinerary"), num_days, generation=generation)
+
+        # If LLM truncated or omitted aiRecommendations / optimizedItinerary.days, run compact recovery call
+        if not ai_recs or len(days) < num_days or any(len(d.strip()) <= 25 for d in days):
+            print(f"[ITINERARY] Incomplete sections detected (recs={bool(ai_recs)}, days={len(days)}/{num_days}). Running compact recovery...")
+            recovery_prompt = f"""
+Return ONLY valid JSON with NO markdown and NO extra explanation:
+{{
+  "aiRecommendations": "• Tip 1 (₹X)\\n• Tip 2 (₹X)\\n• Tip 3 (₹X)\\n• Tip 4 (₹X)\\n• Tip 5 (₹X)",
+  "optimizedItinerary": {{
+    "days": [
+      "Day 1: Title\\n• 08:00 AM - Breakfast\\n• 10:00 AM - Morning Sightseeing\\n• 01:00 PM - Local Lunch\\n• 03:30 PM - Afternoon Attraction\\n• 06:30 PM - Sunset Viewpoint\\n• 08:30 PM - Dinner"
+    ]
+  }}
+}}
+
+Trip Details:
+- Origin: {form['origin']}
+- Destination: {form['destination']}
+- Dates: {form['startDate']} to {form['endDate']} ({num_days} days)
+- Travel Type: {form['travelType']} ({form['numberOfPeople']} traveler(s))
+- Budget: ₹{form['budget']} INR
+- Preferences: {form.get('preferences') or 'balanced sightseeing, local food, top highlights'}
+
+Requirements:
+1. `aiRecommendations`: 5-7 concise tips in {form['destination']} with prices in Indian Rupees (₹), separated by `\\n• `.
+2. `optimizedItinerary.days`: EXACTLY {num_days} day strings, each formatted as "Day X: Title\\n• 07:00 AM - Activity\\n• 09:30 AM - Activity\\n• 01:00 PM - Lunch\\n• 03:30 PM - Activity\\n• 06:30 PM - Evening\\n• 08:30 PM - Dinner".
+"""
+            try:
+                recovered = await generate_json(recovery_prompt)
+                if not ai_recs:
+                    ai_recs = _normalize_ai_recommendations(
+                        recovered.get("aiRecommendations")
+                        or recovered.get("ai_recommendations")
+                        or recovered.get("recommendations")
+                    )
+                if len(days) < num_days or any(len(d.strip()) <= 25 for d in days):
+                    recovered_days = _normalize_days(recovered.get("optimizedItinerary"), num_days, generation=recovered)
+                    if recovered_days:
+                        days = recovered_days
+            except Exception as rec_err:
+                print(f"[ITINERARY] Recovery call failed: {rec_err}")
+
+        if not days:
             days = [""] * num_days
+        elif len(days) < num_days:
+            days = days + [""] * (num_days - len(days))
 
         itinerary_id = str(uuid.uuid4())
         data = {
@@ -488,16 +650,17 @@ async def generate_plan(*, user_id: str, email: str, full_name: str, form: dict[
             "transportDetails": generation.get("transportDetails") or "",
             "hotels": hotels,
             "costPredictor": generation.get("costPredictor") or "",
-            "aiRecommendations": generation.get("aiRecommendations") or "",
+            "aiRecommendations": ai_recs,
             "optimizedItinerary": {"days": days},
         }
 
+        storage_cache_key = key if _is_complete_plan(data) else f"{key}-{itinerary_id}"
         await mongo.collection("itineraries").update_one(
-            {"cacheKey": key},
+            {"cacheKey": storage_cache_key},
             {
                 "$set": {
                     "itineraryId": itinerary_id,
-                    "cacheKey": key,
+                    "cacheKey": storage_cache_key,
                     "userId": user_id,
                     "updatedAt": datetime.now(timezone.utc),
                     "data": data,
