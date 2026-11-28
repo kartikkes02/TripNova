@@ -5,6 +5,7 @@ TripNova is a full-stack, AI-driven travel planning platform that turns trip pre
 - **Live Frontend (Vercel):** [https://trip-nova-three.vercel.app](https://trip-nova-three.vercel.app)
 - **Live Backend API (Render):** [https://tripnova-ys23.onrender.com](https://tripnova-ys23.onrender.com)
 
+
 ---
 
 ## Key Features
